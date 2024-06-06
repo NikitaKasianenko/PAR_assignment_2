@@ -371,6 +371,7 @@ int main() {
             dynamicArray.help();
             continue;
         }
+
         if (strcmp(input, "10") == 0) {
             free(input);
             dynamicArray.freeArray();
