@@ -1,13 +1,16 @@
 #define _CRT_SECURE_NO_WARNINGS
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
+#include <map>
+#include <iostream>
+#include <stack>
 
 using namespace std;
 
-
-class DynamicArray
-{
+class DynamicArray {
 public:
     DynamicArray() {
         bufferSize = 256;
@@ -16,12 +19,12 @@ public:
         ncol = 0;
         array = NULL;
         initialize_array();
+        initialize_dictionary();
     }
 
     ~DynamicArray() {
         freeArray();
     }
-
 
     void initialize_array() {
         array = (char**)malloc(initialRowCount * sizeof(char*));
@@ -39,11 +42,9 @@ public:
         }
     }
 
-
     void newBuffer(size_t* bufferSize) {
         *bufferSize = *bufferSize * 2;
     }
-
 
     void freeArray() {
         for (int i = 0; i <= nrow; i++) {
@@ -55,12 +56,15 @@ public:
         array = nullptr;
     }
 
+    void initialize_dictionary() {
+        dict['6'] = '8';
+        dict['8'] = '6';
+    }
+
 
     void reallocate_rows() {
-
         initialRowCount *= 2;
         array = (char**)realloc(array, initialRowCount * sizeof(char*));
-
         if (array == NULL) {
             printf("Memory allocation failed.");
             exit(1);
@@ -75,7 +79,6 @@ public:
             array[i][0] = '\0';
         }
     }
-
 
     char* user_input(size_t* bufferSize) {
         char* input = (char*)malloc(*bufferSize * sizeof(char));
@@ -103,7 +106,6 @@ public:
         return input;
     }
 
-
     void append_text() {
         char* input = NULL;
         printf("Enter text to append: ");
@@ -120,15 +122,11 @@ public:
 
         for (int i = 0; i <= strlen(input); i++) {
             array[nrow][i + ncol] = input[i];
-
         }
         ncol += strlen(input);
         free(input);
         input = nullptr;
     }
-
-
-
 
     void new_line() {
         nrow++;
@@ -140,7 +138,6 @@ public:
         printf("New line is started\n");
     }
 
-
     void write_in_file() {
         printf("Enter the file name for saving: ");
         char* input = user_input(&bufferSize);
@@ -150,28 +147,22 @@ public:
 
         if (file == NULL) {
             printf("Can't open file\n");
+            free(input);
             return;
         }
 
-        if (file != NULL) {
-            for (int i = 0; i <= nrow; i++) {
-                for (int b = 0; b < strlen(array[i]) && array[i][b] != '\0'; b++) {
-                    fputc(array[i][b], file);
-
-                }
-                fputc('\n', file);
+        for (int i = 0; i <= nrow; i++) {
+            for (int b = 0; b < strlen(array[i]) && array[i][b] != '\0'; b++) {
+                fputc(array[i][b], file);
             }
-            printf("Successful\n");
-            fclose(file);
-            file = nullptr;
+            fputc('\n', file);
         }
-
+        printf("Successful\n");
+        fclose(file);
+        file = nullptr;
         free(input);
         input = nullptr;
-
-
     }
-
 
     void read_from_file() {
         nrow = 0;
@@ -181,32 +172,25 @@ public:
         char mystring[1000];
         file = fopen(input, "r");
         free(input);
-        if (file == NULL)
-        {
+        if (file == NULL) {
             printf("Error opening file\n");
             return;
         }
-        else
-        {
-            while (fgets(mystring, 1000, file) != NULL)
-            {
-                if (nrow >= initialRowCount) {
-                    reallocate_rows();
-                }
 
-                strncpy(array[nrow], mystring, strlen(mystring));
-                array[nrow][strlen(mystring) - 1] = '\0';
-                nrow++;
+        while (fgets(mystring, 1000, file) != NULL) {
+            if (nrow >= initialRowCount) {
+                reallocate_rows();
             }
-
-            fclose(file);
-            file = nullptr;
+            strncpy(array[nrow], mystring, strlen(mystring));
+            array[nrow][strlen(mystring) - 1] = '\0';
+            nrow++;
         }
+
+        fclose(file);
+        file = nullptr;
     }
 
-
     void print() {
-
         for (int i = 0; i <= nrow; i++) {
             if (i > 0) {
                 printf("\n");
@@ -214,13 +198,10 @@ public:
             for (int j = 0; j < strlen(array[i]) && array[i][j] != '\0'; j++)
                 printf("%c", array[i][j]);
         }
-
         printf("\n");
     }
 
-
     void insert_text() {
-
         char* input = NULL;
         int currow = 0;
         int curcol = 0;
@@ -255,7 +236,6 @@ public:
                 input = nullptr;
                 exit(1);
             }
-
         }
 
         for (int i = strlen(array[currow]); i >= curcol; i--) {
@@ -277,13 +257,12 @@ public:
         int amount = 0;
 
         while (1) {
-            printf("Choose line, index and number of symbols:  ");
+            printf("Choose line, index and number of symbols: ");
             input = user_input(&bufferSize);
             if (sscanf(input, "%d %d %d", &currow, &curcol, &amount) == 3) {
                 if (currow >= 0 && currow <= nrow &&
                     curcol >= 0 && curcol < (int)strlen(array[currow]) &&
-                    amount >= 0 <= strnlen(array[currow], bufferSize) 
-                    && amount + curcol <= strnlen(array[currow], bufferSize)) {
+                    amount >= 0 && amount + curcol <= (int)strlen(array[currow])) {
                     free(input);
                     break;
                 }
@@ -294,20 +273,16 @@ public:
             printf("Choose correct index and amount of symbols separated by space in format 'x y z'\n");
         }
 
-        int new_length = strnlen(array[currow],bufferSize) - amount;
+        int new_length = (int)strlen(array[currow]) - amount;
 
         for (int i = curcol; i < new_length; ++i) {
             array[currow][i] = array[currow][i + amount];
         }
         array[currow][new_length] = '\0';
         ncol -= amount;
-
     }
 
-
-
     void search() {
-
         char* input = NULL;
         printf("Enter text to search: ");
         input = user_input(&bufferSize);
@@ -318,7 +293,7 @@ public:
         for (int i = 0; i <= nrow; i++) {
             name = array[i];
             while ((name = strstr(name, to_search)) != NULL) {
-                printf("Substring found at index: %d %d\n", i, ((int)name - (int)array[i]));
+                printf("Substring found at index: %d %d\n", i, (int)(name - array[i]));
                 found = true;
                 name++;
             }
@@ -331,9 +306,92 @@ public:
         input = nullptr;
     }
 
+    void cut() {
+        char* input = NULL;
+        int currow = 0;
+        int curcol = 0;
+        int amount = 0;
+
+        while (1) {
+            printf("Choose line, index and number of symbols: ");
+            input = user_input(&bufferSize);
+            if (sscanf(input, "%d %d %d", &currow, &curcol, &amount) == 3) {
+                if (currow >= 0 && currow <= nrow &&
+                    curcol >= 0 && curcol < (int)strlen(array[currow]) &&
+                    amount >= 0 && amount + curcol <= (int)strlen(array[currow])) {
+                    break;
+                }
+            }
+
+            free(input);
+            input = nullptr;
+            printf("Choose correct index and amount of symbols separated by space in format 'x y z'\n");
+        }
+
+        int new_length = (int)strlen(array[currow]) - amount;
+
+        char* text = (char*)malloc((amount + 1) * sizeof(char));
+        strncpy(text, &array[currow][curcol], amount);
+        text[amount] = '\0';
+        stack.push(text);
+
+        for (int i = curcol; i < new_length; ++i) {
+            array[currow][i] = array[currow][i + amount];
+        }
+        array[currow][new_length] = '\0';
+        ncol -= amount;
+    }
+
+    void paste() {
+        if (stack.empty()) {
+            printf("Nothing to paste.\n");
+            return;
+        }
+
+        char* input = NULL;
+        int currow = 0;
+        int curcol = 0;
+
+        while (1) {
+            printf("Choose line and index: ");
+            input = user_input(&bufferSize);
+            if (sscanf(input, "%d %d", &currow, &curcol) == 2) {
+                if (currow >= 0 && currow <= nrow &&
+                    curcol >= 0 && curcol <= (int)strlen(array[currow])) {
+                    free(input);
+                    break;
+                }
+            }
+
+            free(input);
+            input = nullptr;
+            printf("Choose correct index separated by space in format 'x y'\n");
+        }
+
+        input = stack.top(); // Get the text from the stack without popping
+
+        int text_length = strlen(input);
+
+        if (text_length + strlen(array[currow]) >= bufferSize) {
+            newBuffer(&bufferSize);
+            array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
+            if (array[currow] == NULL) {
+                printf("Memory allocation failed");
+                exit(1);
+            }
+        }
+
+        for (int i = strlen(array[currow]); i >= curcol; i--) {
+            array[currow][i + text_length] = array[currow][i];
+        }
+
+        for (int i = 0; i < text_length; i++) {
+            array[currow][curcol + i] = input[i];
+        }
+    }
 
     void help() {
-        printf("You open a text redactor with this functions:\n");
+        printf("You open a text redactor with these functions:\n");
         printf("Command-'1': Append text \n");
         printf("Command-'2': Start the new line \n");
         printf("Command-'3': Write your text in file\n");
@@ -342,10 +400,14 @@ public:
         printf("Command-'6': Insert the text by line and symbol index\n");
         printf("Command-'7': Search\n");
         printf("Command-'8': Delete\n");
+        printf("Command-'9': Cut\n");
+        printf("Command-'12': Paste\n");
         printf("Command-'11': Clear console\n");
         printf("Command-'10': Exit\n\n");
+    }
 
-
+    void undo() {
+        // Placeholder for undo functionality
     }
 
 private:
@@ -354,7 +416,9 @@ private:
     int initialRowCount;
     int nrow;
     int ncol;
-    char** array = NULL;
+    char** array;
+    map<char, char> dict;
+    stack<char*> stack;
 };
 
 int main() {
@@ -364,7 +428,6 @@ int main() {
     char* input = NULL;
 
     while (1) {
-
         printf("Choose the command: ");
         input = dynamicArray.user_input(&bufferSize);
 
@@ -378,7 +441,6 @@ int main() {
             dynamicArray.new_line();
             free(input);
             continue;
-
         }
 
         if (strcmp(input, "3") == 0) {
@@ -410,17 +472,16 @@ int main() {
             free(input);
             continue;
         }
-        
+
         if (strcmp(input, "8") == 0) {
             dynamicArray.delete_text();
             free(input);
             continue;
         }
 
-        if (strcmp(input, "11") == 0) {
+        if (strcmp(input, "9") == 0) {
             free(input);
-            system("cls");
-            dynamicArray.help();
+            dynamicArray.cut();
             continue;
         }
 
@@ -430,6 +491,19 @@ int main() {
             break;
         }
 
+        if (strcmp(input, "11") == 0) {
+            free(input);
+            system("cls");
+            dynamicArray.help();
+            continue;
+        }
+
+        if (strcmp(input, "12") == 0) {
+            free(input);
+            dynamicArray.paste();
+            continue;
+        }
+
         else {
             printf("The command is not implemented\n");
         }
@@ -437,4 +511,3 @@ int main() {
     }
     return 0;
 }
-
