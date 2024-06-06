@@ -22,6 +22,7 @@ public:
         freeArray();
     }
 
+
     void initialize_array() {
         array = (char**)malloc(initialRowCount * sizeof(char*));
         if (array == NULL) {
@@ -37,6 +38,7 @@ public:
             array[i][0] = '\0';
         }
     }
+
 
     void newBuffer(size_t* bufferSize) {
         *bufferSize = *bufferSize * 2;
@@ -123,6 +125,7 @@ public:
         free(input);
     }
 
+
     void new_line() {
         nrow++;
         ncol = 0;
@@ -207,6 +210,8 @@ public:
 
         printf("\n");
     }
+
+
     void insert_text() {
 
         char* input = NULL;
@@ -254,6 +259,8 @@ public:
 
         free(input);
     }
+
+
     void search() {
 
         char* input = NULL;
@@ -278,6 +285,7 @@ public:
         free(input);
         input = nullptr;
     }
+
 
     void help() {
         printf("You open a text redactor with this functions:\n");
@@ -309,14 +317,10 @@ int main() {
     dynamicArray.help();
     char* input = NULL;
 
-
-
     while (1) {
 
         printf("Choose the command: ");
         input = dynamicArray.user_input(&bufferSize);
-
-
 
         if (strcmp(input, "1") == 0) {
             dynamicArray.append_text();
@@ -367,21 +371,16 @@ int main() {
             dynamicArray.help();
             continue;
         }
-
         if (strcmp(input, "10") == 0) {
             free(input);
             dynamicArray.freeArray();
             break;
         }
 
-
-
         else {
             printf("The command is not implemented\n");
         }
-
         free(input);
-
     }
     return 0;
 }
