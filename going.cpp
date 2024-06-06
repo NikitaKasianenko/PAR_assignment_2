@@ -52,6 +52,7 @@ public:
             }
         }
         free(array);
+        array = nullptr;
     }
 
 
@@ -123,7 +124,10 @@ public:
         }
         ncol += strlen(input);
         free(input);
+        input = nullptr;
     }
+
+
 
 
     void new_line() {
@@ -159,9 +163,11 @@ public:
             }
             printf("Successful\n");
             fclose(file);
+            file = nullptr;
         }
 
         free(input);
+        input = nullptr;
 
 
     }
@@ -194,6 +200,7 @@ public:
             }
 
             fclose(file);
+            file = nullptr;
         }
     }
 
@@ -230,6 +237,7 @@ public:
             }
 
             free(input);
+            input = nullptr;
             printf("Choose correct index separated by space in format 'x y'\n");
         }
 
@@ -244,6 +252,7 @@ public:
             if (array[currow] == NULL) {
                 printf("Memory allocation failed");
                 free(input);
+                input = nullptr;
                 exit(1);
             }
 
@@ -258,7 +267,43 @@ public:
         }
 
         free(input);
+        input = nullptr;
     }
+
+    void delete_text() {
+        char* input = NULL;
+        int currow = 0;
+        int curcol = 0;
+        int amount = 0;
+
+        while (1) {
+            printf("Choose line, index and number of symbols:  ");
+            input = user_input(&bufferSize);
+            if (sscanf(input, "%d %d %d", &currow, &curcol, &amount) == 3) {
+                if (currow >= 0 && currow <= nrow &&
+                    curcol >= 0 && curcol < (int)strlen(array[currow]) &&
+                    amount >= 0 <= strnlen(array[currow], bufferSize) 
+                    && amount + curcol <= strnlen(array[currow], bufferSize)) {
+                    free(input);
+                    break;
+                }
+            }
+
+            free(input);
+            input = nullptr;
+            printf("Choose correct index and amount of symbols separated by space in format 'x y z'\n");
+        }
+
+        int new_length = strnlen(array[currow],bufferSize) - amount;
+
+        for (int i = curcol; i < new_length; ++i) {
+            array[currow][i] = array[currow][i + amount];
+        }
+        array[currow][new_length] = '\0';
+        ncol -= amount;
+
+    }
+
 
 
     void search() {
@@ -296,7 +341,8 @@ public:
         printf("Command-'5': Print the current text to console\n");
         printf("Command-'6': Insert the text by line and symbol index\n");
         printf("Command-'7': Search\n");
-        printf("Command-'8': Clear console\n");
+        printf("Command-'8': Delete\n");
+        printf("Command-'11': Clear console\n");
         printf("Command-'10': Exit\n\n");
 
 
@@ -364,8 +410,14 @@ int main() {
             free(input);
             continue;
         }
-
+        
         if (strcmp(input, "8") == 0) {
+            dynamicArray.delete_text();
+            free(input);
+            continue;
+        }
+
+        if (strcmp(input, "11") == 0) {
             free(input);
             system("cls");
             dynamicArray.help();
