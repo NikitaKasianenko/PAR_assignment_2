@@ -489,7 +489,7 @@ public:
 
         if (action_type == 1) {
             // Undo append
-            char* text = strchr(last_action, '\t') + 1;
+            char* text = strchr(last_action_copy, '\t') + 1;
             size_t len = strlen(text);
             ncol -= len;
             array[nrow][ncol] = '\0';
@@ -749,24 +749,17 @@ public:
             curcol = atoi(token);
             token = strtok(nullptr, "\t");
             char* text = _strdup(token);
+            char* text_copy = _strdup(text);
+
+            bufferStack.push(text_copy);
 
             int text_length = strlen(text);
-            if (text_length + strlen(array[currow]) >= bufferSize) {
-                newBuffer(&bufferSize);
-                array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
-                if (array[currow] == nullptr) {
-                    printf("Memory allocation failed");
-                    free(text);
-                    exit(1);
-                }
-            }
+            int new_length = (int)strlen(array[currow]) - text_length;
 
-            for (int i = strlen(array[currow]); i >= curcol; i--) {
-                array[currow][i + text_length] = array[currow][i];
+            for (int i = curcol; i <= new_length; ++i) {
+                array[currow][i] = array[currow][i + text_length];
             }
-            for (int i = 0; i < text_length; i++) {
-                array[currow][curcol + i] = text[i];
-            }
+            array[currow][new_length] = '\0';
 
             free(text);
         }
