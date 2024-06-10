@@ -17,7 +17,7 @@ public:
         initialRowCount = 10;
         nrow = 0;
         ncol = 0;
-        array = NULL;
+        array = nullptr;
         initialize_array();
     }
 
@@ -27,13 +27,13 @@ public:
 
     void initialize_array() {
         array = (char**)malloc(initialRowCount * sizeof(char*));
-        if (array == NULL) {
+        if (array == nullptr) {
             printf("Memory allocation failed.");
             exit(1);
         }
         for (int i = 0; i < initialRowCount; i++) {
             array[i] = (char*)malloc(bufferSize * sizeof(char));
-            if (array[i] == NULL) {
+            if (array[i] == nullptr) {
                 printf("Memory allocation failed.");
                 exit(1);
             }
@@ -42,30 +42,30 @@ public:
     }
 
     void newBuffer(size_t* bufferSize) {
-        *bufferSize = *bufferSize * 2;
+        *bufferSize *= 2;
     }
 
     void freeArray() {
-        for (int i = 0; i <= nrow; i++) {
-            if (array[i] != NULL) {
+        if (array) {
+            for (int i = 0; i < initialRowCount; i++) {
                 free(array[i]);
             }
+            free(array);
+            array = nullptr;
         }
-        free(array);
-        array = nullptr;
     }
 
     void reallocate_rows() {
         initialRowCount *= 2;
-        array = (char**)realloc(array, initialRowCount * sizeof(char*));
-        if (array == NULL) {
+        char** temp = (char**)realloc(array, initialRowCount * sizeof(char*));
+        if (temp == nullptr) {
             printf("Memory allocation failed.");
             exit(1);
         }
-
+        array = temp;
         for (int i = nrow; i < initialRowCount; i++) {
             array[i] = (char*)malloc(bufferSize * sizeof(char));
-            if (array[i] == NULL) {
+            if (array[i] == nullptr) {
                 printf("Memory allocation failed.");
                 exit(1);
             }
@@ -75,7 +75,7 @@ public:
 
     char* user_input(size_t* bufferSize) {
         char* input = (char*)malloc(*bufferSize * sizeof(char));
-        if (input == NULL) {
+        if (input == nullptr) {
             printf("Memory allocation failed.");
             exit(1);
         }
@@ -83,11 +83,11 @@ public:
         int length = 0;
         int symbol;
 
-        while ((symbol = getchar()) != '\n') {
+        while ((symbol = getchar()) != '\n' && symbol != EOF) {
             if (length >= *bufferSize - 1) {
-                *bufferSize = *bufferSize * 2;
+                *bufferSize *= 2;
                 input = (char*)realloc(input, *bufferSize * sizeof(char));
-                if (input == NULL) {
+                if (input == nullptr) {
                     printf("Memory allocation failed.");
                     exit(1);
                 }
@@ -100,30 +100,31 @@ public:
     }
 
     void append_text() {
-        char* input = NULL;
         printf("Enter text to append: ");
-        input = user_input(&bufferSize);
+        char* input = user_input(&bufferSize);
 
         if (ncol + strlen(input) >= bufferSize - 1) {
             newBuffer(&bufferSize);
             array[nrow] = (char*)realloc(array[nrow], bufferSize * sizeof(char));
-            if (array[nrow] == NULL) {
+            if (array[nrow] == nullptr) {
                 printf("Memory allocation failed.");
                 exit(1);
             }
         }
 
-        for (int i = 0; i <= strlen(input); i++) {
-            array[nrow][i + ncol] = input[i];
-        }
+        strcat(array[nrow], input);
         ncol += strlen(input);
 
         char* undo_info = (char*)malloc((strlen(input) + 4) * sizeof(char));
         sprintf(undo_info, "1\t%s", input);
-        stack.push(undo_info);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
 
         free(input);
-        input = nullptr;
     }
 
     void new_line() {
@@ -137,7 +138,12 @@ public:
 
         char* undo_info = (char*)malloc(4 * sizeof(char));
         sprintf(undo_info, "2");
-        stack.push(undo_info);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
     }
 
     void write_in_file() {
@@ -147,23 +153,19 @@ public:
         sprintf(path, "C:\\Windows\\Temp\\%s.txt", input);
         file = fopen(path, "w");
 
-        if (file == NULL) {
+        if (file == nullptr) {
             printf("Can't open file\n");
             free(input);
             return;
         }
 
         for (int i = 0; i <= nrow; i++) {
-            for (int b = 0; b < strlen(array[i]) && array[i][b] != '\0'; b++) {
-                fputc(array[i][b], file);
-            }
-            fputc('\n', file);
+            fprintf(file, "%s\n", array[i]);
         }
         printf("Successful\n");
         fclose(file);
         file = nullptr;
         free(input);
-        input = nullptr;
     }
 
     void read_from_file() {
@@ -174,12 +176,12 @@ public:
         char mystring[1000];
         file = fopen(input, "r");
         free(input);
-        if (file == NULL) {
+        if (file == nullptr) {
             printf("Error opening file\n");
             return;
         }
 
-        while (fgets(mystring, 1000, file) != NULL) {
+        while (fgets(mystring, sizeof(mystring), file) != nullptr) {
             if (nrow >= initialRowCount) {
                 reallocate_rows();
             }
@@ -194,27 +196,20 @@ public:
 
     void print() {
         for (int i = 0; i <= nrow; i++) {
-            if (i > 0) {
-                printf("\n");
-            }
-            for (int j = 0; j < strlen(array[i]) && array[i][j] != '\0'; j++)
-                printf("%c", array[i][j]);
+            printf("%s\n", array[i]);
         }
-        printf("\n");
     }
 
     void insert_text() {
-        char* input = NULL;
+        char* input = nullptr;
         int currow = 0;
         int curcol = 0;
 
-        while (1) {
+        while (true) {
             printf("Choose line and index: ");
             input = user_input(&bufferSize);
             if (sscanf(input, "%d %d", &currow, &curcol) == 2) {
-                if (currow >= 0 && currow <= nrow &&
-                    curcol >= 0 && curcol <= (int)strlen(array[currow])) {
-                    free(input);
+                if (currow >= 0 && currow <= nrow && curcol >= 0 && curcol <= (int)strlen(array[currow])) {
                     break;
                 }
             }
@@ -232,10 +227,9 @@ public:
         if (text_length + strlen(array[currow]) >= bufferSize) {
             newBuffer(&bufferSize);
             array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
-            if (array[currow] == NULL) {
+            if (array[currow] == nullptr) {
                 printf("Memory allocation failed");
                 free(input);
-                input = nullptr;
                 exit(1);
             }
         }
@@ -250,27 +244,28 @@ public:
 
         char* undo_info = (char*)malloc((strlen(input) + 50) * sizeof(char));
         sprintf(undo_info, "6\t%d\t%d\t%s", currow, curcol, input);
-        stack.push(undo_info);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
 
         free(input);
-        input = nullptr;
     }
 
-
     void delete_text() {
-        char* input = NULL;
+        char* input = nullptr;
         int currow = 0;
         int curcol = 0;
         int amount = 0;
 
-        while (1) {
+        while (true) {
             printf("Choose line, index and number of symbols: ");
             input = user_input(&bufferSize);
             if (sscanf(input, "%d %d %d", &currow, &curcol, &amount) == 3) {
-                if (currow >= 0 && currow <= nrow &&
-                    curcol >= 0 && curcol < (int)strlen(array[currow]) &&
+                if (currow >= 0 && currow <= nrow && curcol >= 0 && curcol < (int)strlen(array[currow]) &&
                     amount >= 0 && amount + curcol <= (int)strlen(array[currow])) {
-                    free(input);
                     break;
                 }
             }
@@ -293,20 +288,26 @@ public:
 
         char* undo_info = (char*)malloc((amount + 20) * sizeof(char));
         sprintf(undo_info, "8\t%d\t%d\t%s", currow, curcol, deleted_text);
-        stack.push(undo_info);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
+
+        free(deleted_text);
     }
 
     void search() {
-        char* input = NULL;
         printf("Enter text to search: ");
-        input = user_input(&bufferSize);
+        char* input = user_input(&bufferSize);
         char* to_search = input;
         bool found = false;
-        char* name = NULL;
+        char* name = nullptr;
 
         for (int i = 0; i <= nrow; i++) {
             name = array[i];
-            while ((name = strstr(name, to_search)) != NULL) {
+            while ((name = strstr(name, to_search)) != nullptr) {
                 printf("Substring found at index: %d %d\n", i, (int)(name - array[i]));
                 found = true;
                 name++;
@@ -317,21 +318,19 @@ public:
             printf("Substring not found\n");
         }
         free(input);
-        input = nullptr;
     }
 
     void cut() {
-        char* input = NULL;
+        char* input = nullptr;
         int currow = 0;
         int curcol = 0;
         int amount = 0;
 
-        while (1) {
+        while (true) {
             printf("Choose line, index and number of symbols: ");
             input = user_input(&bufferSize);
             if (sscanf(input, "%d %d %d", &currow, &curcol, &amount) == 3) {
-                if (currow >= 0 && currow <= nrow &&
-                    curcol >= 0 && curcol < (int)strlen(array[currow]) &&
+                if (currow >= 0 && currow <= nrow && curcol >= 0 && curcol < (int)strlen(array[currow]) &&
                     amount >= 0 && amount + curcol <= (int)strlen(array[currow])) {
                     break;
                 }
@@ -343,31 +342,38 @@ public:
         }
 
         int new_length = (int)strlen(array[currow]) - amount;
-
         char* text = (char*)malloc((amount + 1) * sizeof(char));
         strncpy(text, &array[currow][curcol], amount);
         text[amount] = '\0';
-        buffer_stack.push(text);
+        bufferStack.push(text);
 
         for (int i = curcol; i < new_length; ++i) {
             array[currow][i] = array[currow][i + amount];
         }
         array[currow][new_length] = '\0';
         ncol -= amount;
+
+        char* undo_info = (char*)malloc((strlen(text) + 50) * sizeof(char));
+        sprintf(undo_info, "9\t%d\t%d\t%s", currow, curcol, text);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
     }
 
     void copy() {
-        char* input = NULL;
+        char* input = nullptr;
         int currow = 0;
         int curcol = 0;
         int amount = 0;
 
-        while (1) {
+        while (true) {
             printf("Choose line, index and number of symbols: ");
             input = user_input(&bufferSize);
             if (sscanf(input, "%d %d %d", &currow, &curcol, &amount) == 3) {
-                if (currow >= 0 && currow <= nrow &&
-                    curcol >= 0 && curcol < (int)strlen(array[currow]) &&
+                if (currow >= 0 && currow <= nrow && curcol >= 0 && curcol < (int)strlen(array[currow]) &&
                     amount >= 0 && amount + curcol <= (int)strlen(array[currow])) {
                     break;
                 }
@@ -382,46 +388,47 @@ public:
         strncpy(text, &array[currow][curcol], amount);
         text[amount] = '\0';
 
-        buffer_stack.push(text);
+        bufferStack.push(text);
         char* undo_info = (char*)malloc((strnlen(text, bufferSize)) * sizeof(char));
         sprintf(undo_info, "13\t%s", text);
-        stack.push(undo_info);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
     }
 
     void paste() {
-        if (buffer_stack.empty()) {
+        if (bufferStack.empty()) {
             printf("Nothing to paste.\n");
             return;
         }
 
-        char* input = NULL;
+        char* input = nullptr;
         int currow = 0;
         int curcol = 0;
 
-        while (1) {
+        while (true) {
             printf("Choose line and index: ");
             input = user_input(&bufferSize);
             if (sscanf(input, "%d %d", &currow, &curcol) == 2) {
-                if (currow >= 0 && currow <= nrow &&
-                    curcol >= 0 && curcol <= (int)strlen(array[currow])) {
-                    free(input);
+                if (currow >= 0 && currow <= nrow && curcol >= 0 && curcol <= (int)strlen(array[currow])) {
                     break;
                 }
             }
-
             free(input);
             input = nullptr;
             printf("Choose correct index separated by space in format 'x y'\n");
         }
 
-        input = buffer_stack.top(); // Get the text from the stack without popping
-
+        input = bufferStack.top();
         int text_length = strlen(input);
 
         if (text_length + strlen(array[currow]) >= bufferSize) {
             newBuffer(&bufferSize);
             array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
-            if (array[currow] == NULL) {
+            if (array[currow] == nullptr) {
                 printf("Memory allocation failed");
                 exit(1);
             }
@@ -434,8 +441,16 @@ public:
         for (int i = 0; i < text_length; i++) {
             array[currow][curcol + i] = input[i];
         }
-        ncol += text_length;
 
+        ncol += text_length;
+        char* undo_info = (char*)malloc((strlen(input) + 50) * sizeof(char));
+        sprintf(undo_info, "12\t%d\t%d\t%s", currow, curcol, input);
+        undoStack.push(undo_info);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
     }
 
     void help() {
@@ -449,21 +464,25 @@ public:
         printf("Command-'7': Search\n");
         printf("Command-'8': Delete\n");
         printf("Command-'9': Cut\n");
+        printf("Command-'10': Exit\n");
+        printf("Command-'11': Clear console\n");
         printf("Command-'12': Paste\n");
         printf("Command-'13': Copy\n");
-        printf("Command-'11': Clear console\n");
         printf("Command-'14': Undo\n");
-        printf("Command-'10': Exit\n\n");
+        printf("Command-'15': Redo\n\n");
     }
 
     void undo() {
-        if (stack.empty()) {
+        if (undoStack.empty()) {
             printf("No actions to undo.\n");
             return;
         }
 
-        char* last_action = stack.top();
-        stack.pop();
+        char* last_action = undoStack.top();
+        char* last_action_copy = _strdup(last_action);
+        
+        redoStack.push(last_action);
+        undoStack.pop();
 
         int action_type;
         sscanf(last_action, "%d", &action_type);
@@ -474,21 +493,19 @@ public:
             size_t len = strlen(text);
             ncol -= len;
             array[nrow][ncol] = '\0';
-        }
-        else if (action_type == 2) {
+        } else if (action_type == 2) {
             // Undo new line
             nrow--;
             ncol = strlen(array[nrow]);
-        }
-        else if (action_type == 6) {
+        } else if (action_type == 6) {
             // Undo insert
             int currow, curcol;
-            char* token = strtok(last_action, "\t");
-            token = strtok(NULL, "\t");
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
             currow = atoi(token);
-            token = strtok(NULL, "\t");
+            token = strtok(nullptr, "\t");
             curcol = atoi(token);
-            token = strtok(NULL, "\t");
+            token = strtok(nullptr, "\t");
             char* text = _strdup(token);
 
             int text_length = strlen(text);
@@ -498,17 +515,37 @@ public:
                 array[currow][i] = array[currow][i + text_length];
             }
             array[currow][new_length] = '\0';
-            ncol -= text_length;
-        }
-        else if (action_type == 8) {
+            ncol = strnlen(array[currow], bufferSize);
+        } else if (action_type == 12) {
+            // Undo paste
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* text = _strdup(token);
+
+            int text_length = strlen(text);
+            int new_length = (int)strlen(array[currow]) - text_length;
+
+            for (int i = curcol; i <= new_length; ++i) {
+                array[currow][i] = array[currow][i + text_length];
+            }
+            array[currow][new_length] = '\0';
+            ncol = strnlen(array[currow], bufferSize);
+
+            free(text);
+        } else if (action_type == 8) {
             // Undo delete
             int currow, curcol;
-            char* token = strtok(last_action, "\t");
-            token = strtok(NULL, "\t");
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
             currow = atoi(token);
-            token = strtok(NULL, "\t");
+            token = strtok(nullptr, "\t");
             curcol = atoi(token);
-            token = strtok(NULL, "\t");
+            token = strtok(nullptr, "\t");
             char* deleted_text = _strdup(token);
 
             int deleted_text_length = strlen(deleted_text);
@@ -517,7 +554,7 @@ public:
             if (new_length >= bufferSize) {
                 newBuffer(&bufferSize);
                 array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
-                if (array[currow] == NULL) {
+                if (array[currow] == nullptr) {
                     printf("Memory allocation failed");
                     exit(1);
                 }
@@ -530,129 +567,268 @@ public:
             for (int i = 0; i < deleted_text_length; i++) {
                 array[currow][curcol + i] = deleted_text[i];
             }
-            ncol += deleted_text_length;
+            ncol = strnlen(array[currow], bufferSize);
 
             free(deleted_text);
-        }
-        else if (action_type == 13) {
-            char* token = strtok(last_action, "\t");
-            token = strtok(NULL, "\t");
-            if (token != NULL) {
+        } else if (action_type == 13) {
+            // Undo copy
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            if (token != nullptr) {
                 char* text = _strdup(token);
-                if (!buffer_stack.empty()) {
-                    buffer_stack.pop();
+                if (!bufferStack.empty()) {
+                    bufferUndoStack.push(bufferStack.top());
+                    bufferStack.pop();
                 }
                 free(text);
             }
+        } else if (action_type == 9) {
+            // Undo cut
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* cut_text = _strdup(token);
+
+            int cut_text_length = strlen(cut_text);
+            int new_length = (int)strlen(array[currow]) + cut_text_length;
+
+            if (new_length >= bufferSize) {
+                newBuffer(&bufferSize);
+                array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
+                if (array[currow] == nullptr) {
+                    printf("Memory allocation failed");
+                    exit(1);
+                }
+            }
+
+            for (int i = strlen(array[currow]); i >= curcol; i--) {
+                array[currow][i + cut_text_length] = array[currow][i];
+            }
+
+            for (int i = 0; i < cut_text_length; i++) {
+                array[currow][curcol + i] = cut_text[i];
+            }
+            ncol = strnlen(array[currow], bufferSize);
+
+            free(cut_text);
+
+            if (!bufferStack.empty()) {
+                bufferUndoStack.push(bufferStack.top());
+                bufferStack.pop();
+            }
         }
+        free(last_action_copy);
+    }
+
+    void redo() {
+        if (redoStack.empty()) {
+            printf("No actions to redo.\n");
+            return;
+        }
+
+        char* last_action = redoStack.top();
+        redoStack.pop();
+        undoStack.push(last_action);
+        char* last_action_copy = _strdup(last_action);
+
+        int action_type;
+        sscanf(last_action, "%d", &action_type);
+
+        if (action_type == 1) {
+            // Redo append
+            char* text = strchr(last_action, '\t') + 1;
+            strcat(array[nrow], text);
+            ncol += strlen(text);
+        } else if (action_type == 2) {
+            // Redo new line
+            nrow++;
+            ncol = 0;
+        } else if (action_type == 6) {
+            // Redo insert
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* text = _strdup(token);
+
+            int text_length = strlen(text);
+            if (text_length + strlen(array[currow]) >= bufferSize) {
+                newBuffer(&bufferSize);
+                array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
+                if (array[currow] == nullptr) {
+                    printf("Memory allocation failed");
+                    free(text);
+                    exit(1);
+                }
+            }
+
+            for (int i = strlen(array[currow]); i >= curcol; i--) {
+                array[currow][i + text_length] = array[currow][i];
+            }
+            for (int i = 0; i < text_length; i++) {
+                array[currow][curcol + i] = text[i];
+            }
+
+            free(text);
+        } else if (action_type == 12) {
+            // Redo paste
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* text = _strdup(token);
+
+            int text_length = strlen(text);
+            if (text_length + strlen(array[currow]) >= bufferSize) {
+                newBuffer(&bufferSize);
+                array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
+                if (array[currow] == nullptr) {
+                    printf("Memory allocation failed");
+                    free(text);
+                    exit(1);
+                }
+            }
+
+            for (int i = strlen(array[currow]); i >= curcol; i--) {
+                array[currow][i + text_length] = array[currow][i];
+            }
+            for (int i = 0; i < text_length; i++) {
+                array[currow][curcol + i] = text[i];
+            }
+
+            free(text);
+        } else if (action_type == 8) {
+            // Redo delete
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* text = _strdup(token);
+
+            int text_length = strlen(text);
+            int new_length = (int)strlen(array[currow]) - text_length;
+
+            for (int i = curcol; i <= new_length; ++i) {
+                array[currow][i] = array[currow][i + text_length];
+            }
+            array[currow][new_length] = '\0';
+
+            free(text);
+        } else if (action_type == 13) {
+            // Redo copy
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            if (token != nullptr) {
+                char* text = _strdup(token);
+                if (!bufferUndoStack.empty()) {
+                    bufferStack.push(bufferUndoStack.top());
+                    bufferUndoStack.pop();
+                }
+                free(text);
+            }
+        } else if (action_type == 9) {
+            // Redo cut
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* text = _strdup(token);
+
+            int text_length = strlen(text);
+            if (text_length + strlen(array[currow]) >= bufferSize) {
+                newBuffer(&bufferSize);
+                array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
+                if (array[currow] == nullptr) {
+                    printf("Memory allocation failed");
+                    free(text);
+                    exit(1);
+                }
+            }
+
+            for (int i = strlen(array[currow]); i >= curcol; i--) {
+                array[currow][i + text_length] = array[currow][i];
+            }
+            for (int i = 0; i < text_length; i++) {
+                array[currow][curcol + i] = text[i];
+            }
+
+            free(text);
+        }
+        free(last_action_copy);
     }
 
 private:
-    size_t bufferSize; // Initial buffer size
+    size_t bufferSize;
     FILE* file;
     int initialRowCount;
     int nrow;
     int ncol;
     char** array;
-    stack<char*> buffer_stack;
-    stack<char*> stack;
+    stack<char*> undoStack;
+    stack<char*> redoStack;
+    stack<char*> bufferStack;
+    stack<char*> bufferUndoStack;
 };
 
 int main() {
     size_t bufferSize = 256;
     DynamicArray dynamicArray;
     dynamicArray.help();
-    char* input = NULL;
+    char* input = nullptr;
 
-    while (1) {
+    while (true) {
         printf("Choose the command: ");
         input = dynamicArray.user_input(&bufferSize);
 
         if (strcmp(input, "1") == 0) {
             dynamicArray.append_text();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "2") == 0) {
+        } else if (strcmp(input, "2") == 0) {
             dynamicArray.new_line();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "3") == 0) {
+        } else if (strcmp(input, "3") == 0) {
             dynamicArray.write_in_file();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "4") == 0) {
+        } else if (strcmp(input, "4") == 0) {
             dynamicArray.read_from_file();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "5") == 0) {
+        } else if (strcmp(input, "5") == 0) {
             dynamicArray.print();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "6") == 0) {
+        } else if (strcmp(input, "6") == 0) {
             dynamicArray.insert_text();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "7") == 0) {
+        } else if (strcmp(input, "7") == 0) {
             dynamicArray.search();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "8") == 0) {
+        } else if (strcmp(input, "8") == 0) {
             dynamicArray.delete_text();
-            free(input);
-            continue;
-        }
-
-        if (strcmp(input, "9") == 0) {
-            free(input);
+        } else if (strcmp(input, "9") == 0) {
             dynamicArray.cut();
-            continue;
-        }
-
-        if (strcmp(input, "10") == 0) {
-            free(input);
+        } else if (strcmp(input, "10") == 0) {
             dynamicArray.freeArray();
             break;
-        }
-
-        if (strcmp(input, "11") == 0) {
-            free(input);
+        } else if (strcmp(input, "11") == 0) {
             system("cls");
             dynamicArray.help();
-            continue;
-        }
-
-        if (strcmp(input, "12") == 0) {
-            free(input);
+        } else if (strcmp(input, "12") == 0) {
             dynamicArray.paste();
-            continue;
-        }
-
-        if (strcmp(input, "13") == 0) {
-            free(input);
+        } else if (strcmp(input, "13") == 0) {
             dynamicArray.copy();
-            continue;
-        }
-        if (strcmp(input, "14") == 0) {
-            free(input);
+        } else if (strcmp(input, "14") == 0) {
             dynamicArray.undo();
-            continue;
-        }
-
-        else {
+        } else if (strcmp(input, "15") == 0) {
+            dynamicArray.redo();
+        } else {
             printf("The command is not implemented\n");
         }
         free(input);
