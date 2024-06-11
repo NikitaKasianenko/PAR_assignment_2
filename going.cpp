@@ -362,6 +362,61 @@ public:
             redoStack.pop();
         }
     }
+    void insert_rp() {
+        char* input = nullptr;
+        int currow = 0;
+        int curcol = 0;
+
+        while (true) {
+            printf("Choose line and index: ");
+            input = user_input(&bufferSize);
+            if (sscanf(input, "%d %d", &currow, &curcol) == 2) {
+                if (currow >= 0 && currow <= nrow && curcol >= 0 && curcol <= (int)strlen(array[currow])) {
+                    break;
+                }
+            }
+
+            free(input);
+            input = nullptr;
+            printf("Choose correct index separated by space in format 'x y'\n");
+        }
+
+        // Save the current state before modification
+        char* original_text = _strdup(array[currow]);
+
+        printf("Enter text: ");
+        input = user_input(&bufferSize);
+
+        int text_length = strlen(input);
+
+        if (text_length + strlen(array[currow]) >= bufferSize) {
+            newBuffer(&bufferSize);
+            array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
+            if (array[currow] == nullptr) {
+                printf("Memory allocation failed");
+                free(input);
+                exit(1);
+            }
+        }
+
+        for (int i = 0; i < text_length; i++) {
+            array[currow][curcol + i] = input[i];
+        }
+        array[currow][curcol + text_length] = '\0';
+
+        // Store original text and insertion point in undo stack
+        char* undo_info = (char*)malloc((strlen(original_text) + 50) * sizeof(char));
+        sprintf(undo_info, "16\t%d\t%d\t%s", currow, curcol, original_text);
+        undoStack.push(undo_info);
+
+        free(original_text);
+        free(input);
+
+        while (!redoStack.empty()) {
+            free(redoStack.top());
+            redoStack.pop();
+        }
+    }
 
     void copy() {
         char* input = nullptr;
@@ -480,7 +535,7 @@ public:
 
         char* last_action = undoStack.top();
         char* last_action_copy = _strdup(last_action);
-        
+
         redoStack.push(last_action);
         undoStack.pop();
 
@@ -493,11 +548,13 @@ public:
             size_t len = strlen(text);
             ncol -= len;
             array[nrow][ncol] = '\0';
-        } else if (action_type == 2) {
+        }
+        else if (action_type == 2) {
             // Undo new line
             nrow--;
             ncol = strlen(array[nrow]);
-        } else if (action_type == 6) {
+        }
+        else if (action_type == 6) {
             // Undo insert
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -516,7 +573,8 @@ public:
             }
             array[currow][new_length] = '\0';
             ncol = strnlen(array[currow], bufferSize);
-        } else if (action_type == 12) {
+        }
+        else if (action_type == 12) {
             // Undo paste
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -537,7 +595,8 @@ public:
             ncol = strnlen(array[currow], bufferSize);
 
             free(text);
-        } else if (action_type == 8) {
+        }
+        else if (action_type == 8) {
             // Undo delete
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -570,7 +629,8 @@ public:
             ncol = strnlen(array[currow], bufferSize);
 
             free(deleted_text);
-        } else if (action_type == 13) {
+        }
+        else if (action_type == 13) {
             // Undo copy
             char* token = strtok(last_action_copy, "\t");
             token = strtok(nullptr, "\t");
@@ -582,7 +642,8 @@ public:
                 }
                 free(text);
             }
-        } else if (action_type == 9) {
+        }
+        else if (action_type == 9) {
             // Undo cut
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -621,6 +682,27 @@ public:
                 bufferStack.pop();
             }
         }
+        if (action_type == 16) {
+            // Undo insert_rp
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* original_text = _strdup(token);
+            
+            char* text = _strdup(array[currow]);
+            strcpy(array[currow], original_text);
+            
+            char* undo_info = (char*)malloc((strlen(original_text) + 50) * sizeof(char));
+            sprintf(undo_info, "16\t%d\t%d\t%s", currow, curcol, text);
+            redoStack.push(undo_info);
+
+            free(original_text);
+        }
+
         free(last_action_copy);
     }
 
@@ -643,11 +725,13 @@ public:
             char* text = strchr(last_action, '\t') + 1;
             strcat(array[nrow], text);
             ncol += strlen(text);
-        } else if (action_type == 2) {
+        }
+        else if (action_type == 2) {
             // Redo new line
             nrow++;
             ncol = 0;
-        } else if (action_type == 6) {
+        }
+        else if (action_type == 6) {
             // Redo insert
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -677,7 +761,8 @@ public:
             }
 
             free(text);
-        } else if (action_type == 12) {
+        }
+        else if (action_type == 12) {
             // Redo paste
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -707,7 +792,8 @@ public:
             }
 
             free(text);
-        } else if (action_type == 8) {
+        }
+        else if (action_type == 8) {
             // Redo delete
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -727,7 +813,8 @@ public:
             array[currow][new_length] = '\0';
 
             free(text);
-        } else if (action_type == 13) {
+        }
+        else if (action_type == 13) {
             // Redo copy
             char* token = strtok(last_action_copy, "\t");
             token = strtok(nullptr, "\t");
@@ -739,7 +826,8 @@ public:
                 }
                 free(text);
             }
-        } else if (action_type == 9) {
+        }
+        else if (action_type == 9) {
             // Redo cut
             int currow, curcol;
             char* token = strtok(last_action_copy, "\t");
@@ -763,8 +851,28 @@ public:
 
             free(text);
         }
-        free(last_action_copy);
+        else if (action_type == 16) {
+            int currow, curcol;
+            char* token = strtok(last_action_copy, "\t");
+            token = strtok(nullptr, "\t");
+            currow = atoi(token);
+            token = strtok(nullptr, "\t");
+            curcol = atoi(token);
+            token = strtok(nullptr, "\t");
+            char* original_text = _strdup(token);
 
+            char* text = _strdup(array[currow]);
+
+
+            char* undo_info = (char*)malloc((strlen(original_text) + 50) * sizeof(char));
+            sprintf(undo_info, "16\t%d\t%d\t%s", currow, curcol, text);
+            undoStack.push(undo_info);
+
+            strcpy(array[currow], original_text);
+
+            free(original_text);
+        }
+        free(last_action_copy);
     }
 
 private:
@@ -792,37 +900,55 @@ int main() {
 
         if (strcmp(input, "1") == 0) {
             dynamicArray.append_text();
-        } else if (strcmp(input, "2") == 0) {
+        }
+        else if (strcmp(input, "2") == 0) {
             dynamicArray.new_line();
-        } else if (strcmp(input, "3") == 0) {
+        }
+        else if (strcmp(input, "3") == 0) {
             dynamicArray.write_in_file();
-        } else if (strcmp(input, "4") == 0) {
+        }
+        else if (strcmp(input, "4") == 0) {
             dynamicArray.read_from_file();
-        } else if (strcmp(input, "5") == 0) {
+        }
+        else if (strcmp(input, "5") == 0) {
             dynamicArray.print();
-        } else if (strcmp(input, "6") == 0) {
+        }
+        else if (strcmp(input, "6") == 0) {
             dynamicArray.insert_text();
-        } else if (strcmp(input, "7") == 0) {
+        }
+        else if (strcmp(input, "7") == 0) {
             dynamicArray.search();
-        } else if (strcmp(input, "8") == 0) {
+        }
+        else if (strcmp(input, "8") == 0) {
             dynamicArray.delete_text();
-        } else if (strcmp(input, "9") == 0) {
+        }
+        else if (strcmp(input, "9") == 0) {
             dynamicArray.cut();
-        } else if (strcmp(input, "10") == 0) {
+        }
+        else if (strcmp(input, "10") == 0) {
             dynamicArray.freeArray();
             break;
-        } else if (strcmp(input, "11") == 0) {
+        }
+        else if (strcmp(input, "11") == 0) {
             system("cls");
             dynamicArray.help();
-        } else if (strcmp(input, "12") == 0) {
+        }
+        else if (strcmp(input, "12") == 0) {
             dynamicArray.paste();
-        } else if (strcmp(input, "13") == 0) {
+        }
+        else if (strcmp(input, "13") == 0) {
             dynamicArray.copy();
-        } else if (strcmp(input, "14") == 0) {
+        }
+        else if (strcmp(input, "14") == 0) {
             dynamicArray.undo();
-        } else if (strcmp(input, "15") == 0) {
+        }
+        else if (strcmp(input, "15") == 0) {
             dynamicArray.redo();
-        } else {
+        }
+        else if (strcmp(input, "16") == 0) {
+            dynamicArray.insert_rp();
+        }
+        else {
             printf("The command is not implemented\n");
         }
         free(input);
