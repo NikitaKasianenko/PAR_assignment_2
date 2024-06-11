@@ -764,6 +764,7 @@ public:
             free(text);
         }
         free(last_action_copy);
+
     }
 
 private:
