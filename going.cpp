@@ -332,8 +332,13 @@ public:
     }
 
     void cut() {
+
         copy();
         delete_text();
+
+        char* undo_info = (char*)malloc((2) * sizeof(char));
+        sprintf(undo_info, "9");
+        undoStack.push(undo_info);
 
         while (!redoStack.empty()) {
             free(redoStack.top());
@@ -574,42 +579,17 @@ public:
         }
         else if (action_type == 9) {
             // Undo cut
-            int currow, curcol;
-            char* token = strtok(last_action_copy, "\t");
-            token = strtok(nullptr, "\t");
-            currow = atoi(token);
-            token = strtok(nullptr, "\t");
-            curcol = atoi(token);
-            token = strtok(nullptr, "\t");
-            char* cut_text = _strdup(token);
+            redoStack.pop();
+            undo();
+            undo();
 
-            int cut_text_length = strlen(cut_text);
-            int new_length = (int)strlen(array[currow]) + cut_text_length;
+            char* undo_info = (char*)malloc((2) * sizeof(char));
+            sprintf(undo_info, "9\0");
+            redoStack.push(undo_info);
 
-            if (new_length >= bufferSize) {
-                newBuffer(&bufferSize);
-                array[currow] = (char*)realloc(array[currow], bufferSize * sizeof(char));
-                if (array[currow] == nullptr) {
-                    printf("Memory allocation failed");
-                    exit(1);
-                }
-            }
 
-            for (int i = strlen(array[currow]); i >= curcol; i--) {
-                array[currow][i + cut_text_length] = array[currow][i];
-            }
+            
 
-            for (int i = 0; i < cut_text_length; i++) {
-                array[currow][curcol + i] = cut_text[i];
-            }
-            ncol = strnlen(array[currow], bufferSize);
-
-            free(cut_text);
-
-            if (!bufferStack.empty()) {
-                bufferUndoStack.push(bufferStack.top());
-                bufferStack.pop();
-            }
         }
         if (action_type == 16) {
             // Undo insert_rp
@@ -758,27 +738,13 @@ public:
         }
         else if (action_type == 9) {
             // Redo cut
-            int currow, curcol;
-            char* token = strtok(last_action_copy, "\t");
-            token = strtok(nullptr, "\t");
-            currow = atoi(token);
-            token = strtok(nullptr, "\t");
-            curcol = atoi(token);
-            token = strtok(nullptr, "\t");
-            char* text = _strdup(token);
-            char* text_copy = _strdup(text);
+            undoStack.pop();
+            redo();
+            redo();
 
-            bufferStack.push(text_copy);
+            char tex[2] = "9";
 
-            int text_length = strlen(text);
-            int new_length = (int)strlen(array[currow]) - text_length;
-
-            for (int i = curcol; i <= new_length; ++i) {
-                array[currow][i] = array[currow][i + text_length];
-            }
-            array[currow][new_length] = '\0';
-
-            free(text);
+            undoStack.push(tex);
         }
         else if (action_type == 16) {
             int currow, curcol;
